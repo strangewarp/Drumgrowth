@@ -21,15 +21,18 @@ end
 function Drumgrowth:destructiveChunkRepeat(timeline, reps)
 
 	local chunks = {}
+	local newtimeline = {}
 
-	for i = 1, #timeline / self.tpq do
-		chunks[i] = {}
-		local subpoint = ((i - 1) * self.tpq) + 1
-		for tick = subpoint, subpoint + (#timeline / self.tpq) - 1 do
-			table.insert(chunks[i], timeline[tick])
+	-- Move subsections of the timeline into their corresponding chunks
+	for i = 1, #timeline do
+		local sect = math.ceil(i / self.tpq)
+		if chunks[sect] == nil then
+			chunks[sect] = {}
 		end
+		table.insert(chunks[sect], timeline[i])
 	end
 
+	-- Replace some chunks with other chunks
 	while reps > 0 do
 		local rand1, rand2 = math.random(#chunks), 0
 		repeat
@@ -39,13 +42,14 @@ function Drumgrowth:destructiveChunkRepeat(timeline, reps)
 		reps = reps - 1
 	end
 
-	for k, v in ipairs(chunks) do
-		for i = 1, #v do
-			timeline[i + (#v * (k - 1))] = v[i]
+	-- Recombine chunk contents into a new timeline
+	for i = 1, #chunks do
+		for _, v in ipairs(chunks[i]) do
+			table.insert(newtimeline, v)
 		end
 	end
 
-	return timeline
+	return newtimeline
 
 end
 
@@ -71,15 +75,15 @@ function Drumgrowth:initialize(sel, atoms)
 	self.savepath = "C:/Users/Christian/My Documents/MUSIC_STAGING/" -- CHANGE THIS TO REFLECT YOUR DIRECTORY STRUCTURE
 	self.savename = "default"
 	self.seed = 2356
-	self.beats = 32
+	self.beats = 8
 	self.bpm = 120
-	self.tpq = 32
+	self.tpq = 24
 	self.channel = 9
 	self.sustain = 4
 	self.low = 27
 	self.high = 87
 	self.chainunit = 8
-	self.passes = 16
+	self.passes = 2
 
 	return true
 
@@ -120,21 +124,12 @@ function Drumgrowth:in_2_bang()
 
 	local score = {}
 
+	local divs = {}
 	local voices = {}
 	local attract = {}
 	local phrase = {}
 	local chains = {}
 	local timeline = {}
-
-	local divs = {
-		{64, 90, 100},
-		{32, 80, 100},
-		{16, 0, 100},
-		{8, 0, 65},
-		{4, 0, 20},
-		{2, 0, 10},
-		{1, 0, 5}, -- DO NOT REMOVE - an entry that starts with 1 is required for the tables to populate correctly
-	}
 
 	local newvoicebounds = {
 		{1, 5, 50, 100},
@@ -155,6 +150,44 @@ function Drumgrowth:in_2_bang()
 		timeline[i] = {}
 	end
 	pd.post("Timeline table fabricated!")
+
+	-- Get all prime numbers at or below the TPQ value
+	pd.post("Grabbing primes below TPQ value...")
+	local subtpqprimes = {}
+	for i = 1, self.tpq do
+		for num = 2, i ^ (1 / 2) do
+			if (i % num) ~= 0 then
+				table.insert(subtpqprimes, i)
+				break
+			end
+		end
+	end
+	pd.post("Primes grabbed!")
+
+	-- Populate the TPQ divisors table with weight ranges for all divisors of the TPQ value
+	pd.post("Populating TPQ divisor-weights table...")
+	local divtpq = self.tpq
+	local divlow, divhigh = 75, 100
+	local divlowreduce, divhighreduce = 50, 38
+	local divisible = true
+	repeat
+		table.insert(divs, {divtpq, divlow, divhigh})
+		divlow = math.max(0, divlow - divlowreduce)
+		divhigh = math.max(0, divhigh - divhighreduce)
+		divisible = false
+		for _, v in ipairs(subtpqprimes) do
+			local testdiv = divtpq / v
+			if math.floor(testdiv) == testdiv then
+				divtpq = testdiv
+				divisible = true
+				break
+			end
+		end
+	until not divisible
+	if self.tpq > 1 then
+		table.insert(divs, {1, divlow, divhigh})
+	end
+	pd.post("TPQ divisor-weights populated!")
 
 	-- Populate beat-attraction table with attraction thresholds
 	pd.post("Populating attraction table with thresholds...")
@@ -201,7 +234,7 @@ function Drumgrowth:in_2_bang()
 					break
 				end
 			end
-			selectvoice.volume = math.random(attract[i], 127)
+			selectvoice.volume = math.random(1, math.max(1, math.random(attract[i], 127)))
 			table.insert(timeline[i], selectvoice)
 		end
 	end

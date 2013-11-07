@@ -1,6 +1,6 @@
 #N canvas 587 67 625 327 10;
-#N canvas 742 130 524 364 drumgrowth-guts 0;
-#X obj 212 310 drumgrowth-main;
+#N canvas 704 90 524 364 drumgrowth-guts 0;
+#X obj 182 310 drumgrowth-main;
 #X obj 173 24 r dg-savename;
 #X obj 193 44 r dg-seed;
 #X obj 213 64 r dg-beats;
@@ -11,11 +11,11 @@
 #X obj 333 184 r dg-rangetop;
 #X obj 353 204 r dg-markovunit;
 #X obj 373 224 r dg-markovpasses;
-#X obj 315 277 r dg-savebang;
-#X obj 178 277 list split 1;
-#X obj 27 85 r dg-updatevarsbang;
+#X obj 285 277 r dg-savebang;
+#X obj 148 277 list split 1;
+#X obj 27 115 r dg-updatevarsbang;
 #X obj 293 144 r dg-chan;
-#X obj 178 253 pack s s 0 8 120 32 0 4 0 127 8 4;
+#X obj 148 253 pack s s 2356 8 120 24 9 4 27 87 8 2;
 #X connect 1 0 15 1;
 #X connect 2 0 15 2;
 #X connect 3 0 15 3;
@@ -31,7 +31,7 @@
 #X connect 13 0 15 0;
 #X connect 14 0 15 7;
 #X connect 15 0 12 0;
-#X restore 465 271 pd drumgrowth-guts;
+#X restore 465 272 pd drumgrowth-guts;
 #X floatatom 33 57 10 0 0 2 seed dg-nil dg-seed;
 #X floatatom 123 57 5 0 0 2 beats dg-nil dg-beats;
 #X floatatom 163 57 5 0 0 2 BPM dg-nil dg-bpm;
