@@ -1,21 +1,22 @@
 #N canvas 587 67 625 327 10;
 #N canvas 704 90 524 364 drumgrowth-guts 0;
-#X obj 182 310 drumgrowth-main;
-#X obj 173 24 r dg-savename;
-#X obj 193 44 r dg-seed;
-#X obj 213 64 r dg-beats;
-#X obj 233 84 r dg-bpm;
-#X obj 253 104 r dg-tpq;
-#X obj 273 124 r dg-chan;
-#X obj 313 164 r dg-rangebot;
-#X obj 333 184 r dg-rangetop;
-#X obj 353 204 r dg-markovunit;
-#X obj 373 224 r dg-markovpasses;
-#X obj 285 277 r dg-savebang;
-#X obj 148 277 list split 1;
-#X obj 27 115 r dg-updatevarsbang;
-#X obj 293 144 r dg-chan;
-#X obj 148 253 pack s s 2356 8 120 24 9 4 27 87 8 2;
+#X obj 142 310 drumgrowth-main;
+#X obj 176 14 r dg-savename;
+#X obj 196 34 r dg-seed;
+#X obj 216 54 r dg-beats;
+#X obj 236 74 r dg-bpm;
+#X obj 256 94 r dg-tpq;
+#X obj 276 114 r dg-chan;
+#X obj 316 154 r dg-rangebot;
+#X obj 336 174 r dg-rangetop;
+#X obj 356 194 r dg-markovunit;
+#X obj 376 214 r dg-markovpasses;
+#X obj 255 267 r dg-savebang;
+#X obj 151 267 list split 1;
+#X obj 30 105 r dg-updatevarsbang;
+#X obj 296 134 r dg-chan;
+#X obj 151 243 pack s s 2356 8 120 24 9 4 27 87 8 2;
+#X obj 30 181 loadbang;
 #X connect 1 0 15 1;
 #X connect 2 0 15 2;
 #X connect 3 0 15 3;
@@ -26,27 +27,31 @@
 #X connect 8 0 15 9;
 #X connect 9 0 15 10;
 #X connect 10 0 15 11;
-#X connect 11 0 0 1;
-#X connect 12 1 0 0;
+#X connect 11 0 0 2;
+#X connect 12 1 0 1;
 #X connect 13 0 15 0;
 #X connect 14 0 15 7;
 #X connect 15 0 12 0;
+#X connect 16 0 0 0;
 #X restore 465 272 pd drumgrowth-guts;
-#X floatatom 33 57 10 0 0 2 seed dg-nil dg-seed;
-#X floatatom 123 57 5 0 0 2 beats dg-nil dg-beats;
-#X floatatom 163 57 5 0 0 2 BPM dg-nil dg-bpm;
-#X floatatom 203 57 5 0 0 2 TPQ dg-nil dg-tpq;
-#X floatatom 263 57 5 0 0 2 chan dg-nil dg-chan;
-#X floatatom 373 57 5 0 0 2 bot dg-nil dg-rangebot;
-#X floatatom 413 57 5 0 0 2 top dg-nil dg-rangetop;
-#X floatatom 473 57 5 0 0 2 unit_size dg-nil dg-markovunit;
+#X floatatom 33 57 10 0 0 2 seed dg-seed-r dg-seed;
+#X floatatom 123 57 5 0 0 2 beats dg-beats-r dg-beats;
+#X floatatom 163 57 5 0 0 2 BPM dg-bpm-r dg-bpm;
+#X floatatom 203 57 5 0 0 2 TPQ dg-tpq-r dg-tpq;
+#X floatatom 263 57 5 0 0 2 chan dg-chan-r dg-chan;
+#X floatatom 373 57 5 0 0 2 bot dg-rangebot-r dg-rangebot;
+#X floatatom 413 57 5 0 0 2 top dg-rangetop-r dg-rangetop;
+#X floatatom 473 57 5 0 0 2 unit_size dg-markovunit-r dg-markovunit
+;
 #X obj 202 117 bng 50 250 50 0 dg-updatevarsbang dg-nil UPDATE_VARS
 0 -8 0 10 -4160 -262144 -1;
 #X obj 286 117 bng 50 250 50 0 dg-savebang dg-nil GENERATE_FILE 0 -8
 0 10 -4034 -262144 -1;
-#X symbolatom 33 117 20 0 0 2 SAVEFILE_NAME dg-nil dg-savename;
+#X symbolatom 33 117 20 0 0 2 SAVEFILE_NAME dg-savename-r dg-savename
+;
 #X text 372 22 NOTE RANGE;
-#X floatatom 533 57 5 0 0 2 passes dg-nil dg-markovpasses;
+#X floatatom 533 57 5 0 0 2 passes dg-markovpasses-r dg-markovpasses
+;
 #X text 472 22 MARKOV CHAINS;
 #X text 32 193 DRUMGROWTH;
 #X text 32 224 Output is in MIDI files.;
@@ -57,4 +62,4 @@ inside the <initialize> section of drumgrowth-main.pd_lua.;
 #X text 32 22 RANDOM;
 #X text 32 213 A procedural generator for pseudorandom drum sequences.
 ;
-#X floatatom 303 57 5 0 0 2 sustain dg-nil dg-sustain;
+#X floatatom 303 57 5 0 0 2 sustain dg-sustain-r dg-sustain;
