@@ -12,51 +12,42 @@ local function deepCopy(t, t2)
 			local temp = {}
 			deepCopy(v, temp)
 			t2[k] = temp
-		end
-	end
+	end end
 	return t2
 end
 
+local function deepPrint(t, tabs) -- DEBUGGING
+	for k, v in pairs(t) do
+		if type(v) ~= "table" then
+			pd.post(string.rep("..|.", tabs) .. k .. " = " .. tostring(v))
+		else
+			pd.post(string.rep("..|.", tabs) .. "[" .. k .. "]")
+			deepPrint(v, tabs + 1)
+	end end
+end
+
 -- Generate a table with weighting thresholds for every integer divisor of the TPQ value
-function Drumgrowth:populateTPQTable(tpq)
+function Drumgrowth:populateTPQTable()
 
 	local divs = {}
 
-	-- Get all prime numbers at or below the TPQ value
-	pd.post("Grabbing primes below TPQ value...")
-	local subtpqprimes = {}
-	for i = 1, tpq do
-		for num = 2, i ^ (1 / 2) do
-			if (i % num) ~= 0 then
-				table.insert(subtpqprimes, i)
-				break
-			end
-		end
-	end
-	pd.post("Primes grabbed!")
+	-- Get all numbers that divide tpq into an integer
+	pd.post("Grabbing clean divisors of TPQ...")
+	local subtpqdivs = {}
+	for i = self.tpq, 1, -1 do
+		if (self.tpq / i) == math.floor(self.tpq / i) then
+			table.insert(subtpqdivs, i)
+	end end
+	pd.post("Clean divisors grabbed!")
 
 	-- Populate the TPQ divisors table with weight ranges for all divisors of the TPQ value
 	pd.post("Populating TPQ divisor-weights table...")
-	local divtpq = tpq
-	local divlow, divhigh = 75, 100
-	local divlowreduce, divhighreduce = 50, 38
-	local divisible = true
-	repeat
-		table.insert(divs, {divtpq, divlow, divhigh})
-		divlow = math.max(0, divlow - divlowreduce)
-		divhigh = math.max(0, divhigh - divhighreduce)
-		divisible = false
-		for _, v in ipairs(subtpqprimes) do
-			local testdiv = divtpq / v
-			if math.floor(testdiv) == testdiv then
-				divtpq = testdiv
-				divisible = true
-				break
-			end
-		end
-	until not divisible
-	if tpq > 1 then
-		table.insert(divs, {1, divlow, divhigh})
+	local divlow, divhigh = 90, 100
+	local divlowreduce, divhighreduce = 50, 25
+	for _, v in ipairs(subtpqdivs) do
+		table.insert(divs, {v, divlow, divhigh})
+		divlow = math.max(1, divlow - divlowreduce)
+		divhigh = math.max(1, divhigh - divhighreduce)
 	end
 	pd.post("TPQ divisor-weights populated!")
 
@@ -75,9 +66,7 @@ function Drumgrowth:populateAttractionTable(ticks, divs)
 			if ((i - 1) % v[1]) == 0 then
 				attract[i] = math.random(v[2], v[3])
 				break
-			end
-		end
-	end
+	end end end
 	pd.post("Attraction table populated!")
 
 	return attract
@@ -106,12 +95,145 @@ function Drumgrowth:collectBaseNotes(fewest, most, weightbot, weighttop)
 
 end
 
--- Lay down some initial notes into the timeline, favoring prominent denominators
-function Drumgrowth:populateInitialNotes(timeline, attract, voices, totalvoiceweight)
+-- Build the initial units of the timeline, favoring repetition of notes that fall on beats
+function Drumgrowth:buildInitialChunks(divs, voices, totalvoiceweight)
 
-	pd.post("Populating timeline with initial notes...")
+	local timeline = {}
+	local units = {}
+	local similar = {}
+
+	pd.post("Filling primordial timeline...")
+
+	pd.post("Building primordial units...")
+	repeat
+		units, similar = {}, {}
+		-- Build a set of units, each containing notes weighted to be most likely to fall on prominent ticks
+		for i = 1, 50 do
+			units[i] = {}
+			for tick = 1, self.tpq do
+				for k, v in ipairs(divs) do
+					if ((tick - 1) % v[1]) == 0 then
+						if math.random(0, 100) < math.random(v[2], v[3]) then
+							local testweight = math.random(1, totalvoiceweight)
+							for _, vox in ipairs(voices) do
+								testweight = testweight - vox.weight
+								if testweight <= 0 then
+									units[i][tick] = vox
+									break
+						end end end
+						break
+		end	end end end
+		-- Purge empty units
+		for i = #units, 1, -1 do
+			if next(units[i]) == nil then
+				table.remove(units, i)
+		end end
+	until #units > 1
+	pd.post("Primordial units built!")
+
+	-- Analyze differences between every possible pair of units
+	pd.post("Analyzing unit differences...")
+	for i = 1, #units do
+		similar[i] = similar[i] or {}
+		for ii = i, #units do
+			similar[ii] = similar[ii] or {}
+			if i ~= ii then
+				local sim = 0
+				for tick = 1, self.tpq do
+					if (
+						(units[i][tick] == nil)
+						and (units[ii][tick] == nil)
+					) or (
+						(units[i][tick] ~= nil)
+						and (units[ii][tick] ~= nil)
+						and (units[i][tick].note == units[ii][tick].note)
+					)
+					then
+						sim = sim + 1
+				end end
+				if sim == self.tpq then -- Disfavor similarity between units that are exactly identical
+					sim = 0
+				end
+				table.insert(similar[i], {ii, sim})
+				table.insert(similar[ii], {i, sim})
+			else
+				table.insert(similar[i], {i, 0}) -- Disfavor a unit's similarity to itself
+	end end end
+	pd.post("Unit differences analyzed!")
+
+	-- Sort all similarity-tables by similarity-threshold
+	pd.post("Sorting units by similarity threshold...")
+	for i = 1, #similar do
+		table.sort(similar[i], function (a, b) return a[2] > b[2] end)
+	end
+	pd.post("Units sorted!")
+
+	-- Get chunk-order sequence
+	pd.post("Generating primordial chunk order...")
+	local bases = 3
+	local order = {}
+	repeat
+		local types = {}
+		table.insert(order, math.random(1, bases))
+		for i = 1, #order do
+			if types[order[i]] == nil then
+				types[order[i]] = true
+		end end
+	until #types == bases
+	pd.post("Primordial chunk order generated!")
+
+	-- Grab units at random from the base units, and assemble tables of similar units around them
+	pd.post("Gathering similar tables...")
+	local usim, u = {}, {}
+	for i = 1, bases do
+		local ubase = math.random(1, #units)
+		table.insert(u, similar[ubase][((i - 1) % #similar[ubase]) + 1][1])
+	end
+	for i = 1, bases do
+		usim[i] = {u[i], similar[u[i]][1][1]}
+	end
+	pd.post("Similar tables gathered!")
+
+	-- Use the sets of similar units to build the timeline
+	pd.post("Combining ordered similar chunks...")
+	local uindex, elapsed = order[1], 0
+	while #timeline < (self.beats * self.tpq) do
+		local urand = math.random(#usim[uindex])
+		for i = 1, self.tpq do
+			local tick = (elapsed * self.tpq) + i
+			timeline[tick] = {}
+			if (units[usim[uindex][urand]] ~= nil)
+			and (units[usim[uindex][urand]][i] ~= nil)
+			then
+				local outref = units[usim[uindex][urand]][i]
+				local outpiece = {
+					["note"] = outref.note,
+					["weight"] = outref.weight,
+					["volume"] = math.random(outref.weight, 127),
+				}
+				table.insert(timeline[tick], outpiece)
+		end end
+		uindex = order[(uindex % #order) + 1]
+		elapsed = elapsed + 1
+	end
+	pd.post("Ordered similar chunks combined!")
+
+	pd.post("Primordial timeline filled!")
+
+	return timeline
+
+end
+
+-- Pepper some incidental notes into the timeline, favoring prominent beats
+function Drumgrowth:pepperIncidentalNotes(timeline, attract, voices, totalvoiceweight)
+
+	pd.post("Peppering timeline with incidental notes...")
 	for i = 1, #timeline do
-		if math.random(0, 100) < attract[i] then
+		local randval = 0
+		for i = 1, math.max(1, math.floor(self.tpq / self.beats)) do
+			randval = math.random(math.random(randval, 100), 100)
+		end
+		if randval < attract[i] then
 			local selectvoice = {note = 1, weight = 1, volume = 1} -- dummy values
 			local randvoice = math.random(totalvoiceweight)
 			for k, v in ipairs(voices) do
@@ -119,13 +241,18 @@ function Drumgrowth:populateInitialNotes(timeline, attract, voices, totalvoicewe
 				if randvoice <= 0 then
 					selectvoice = v
 					break
-				end
-			end
-			selectvoice.volume = math.max(1, math.random(attract[i], 127))
-			table.insert(timeline[i], selectvoice)
-		end
-	end
-	pd.post("Initial notes populated!")
+			end end
+			selectvoice.volume = math.max(10, math.random(attract[i], 127))
+			local insertok = true
+			for k, v in pairs(timeline[i]) do
+				if selectvoice.note == v.note then
+					insertok = false
+					break
+			end end
+			if insertok then
+				table.insert(timeline[i], selectvoice)
+	end end end
+	pd.post("Incidental notes peppered!")
 
 	return timeline
 
@@ -140,22 +267,99 @@ function Drumgrowth:generateMarkovChains(timeline, chains)
 		local linkbot = i - math.floor(self.chainunit / 2)
 		local slice = {}
 		for point = i + 1, i + self.chainunit do
-			table.insert(slice, timeline[((point - 1) % #timeline) + 1][1] or {note = -1, weight = -1, volume = -1})
-		end
+			if timeline[((point - 1) % #timeline) + 1][1] ~= nil then
+				table.insert(slice, timeline[((point - 1) % #timeline) + 1][1])
+		end end
 		local composite = ""
 		for lp = i, linkbot, -1 do -- Generate increasingly specific Markov link composites for the chain, each of which is used to index the current slice
 			local entry = ((lp - 1) % #timeline) + 1
-			composite = ((next(timeline[entry]) and timeline[entry][1].note) or -1) .. (((composite:len() > 0) and "_") or "") .. composite
+			composite = ((timeline[entry][1] and timeline[entry][1].note) or -1) .. (((composite:len() > 0) and "_") or "") .. composite
 			if chains[composite] == nil then
 				chains[composite] = {}
 			end
 			table.insert(chains[composite], slice) -- Insert the new slice into its chain table, indexed by its preceding notes
-		end
-	end
+	end end
 
 	pd.post("Markov chains generated!")
 
 	return chains
+
+end
+
+-- Overlay Markov chains onto a timeline that contains notes, based on the contents of a chains table
+function Drumgrowth:overlayMarkovChains(timeline, attract, chains)
+
+	-- Loop over the timeline multiple times, favoring notes that lay on wide denominators and laying down Markov chains thereafter
+	pd.post("Overlaying Markov chains onto established timeline...")
+	for tick = 1, #timeline, self.chainunit do
+		if math.random(0, 100) < attract[tick] then
+
+			local linkbot = (((tick - math.floor(self.chainunit / 2)) - 1) % #timeline) + 1
+			local linkorder, checkorder = {}, {}
+			local cpoint = ((linkbot - 2) % #timeline) + 1
+
+			-- Grab the series of linking notes that occur directly before the current tick
+			local arrtab = false
+			repeat
+				cpoint = (cpoint % #timeline) + 1
+				local inval = (next(timeline[cpoint]) and timeline[cpoint][1].note) or -1
+				if arrtab or ((not arrtab) and (cpoint == tick)) then
+					arrtab = true
+					table.insert(checkorder, inval)
+				else
+					table.insert(linkorder, inval)
+				end
+			until #checkorder == self.chainunit
+
+			-- Identify the chains with the closest match to the preceding ticks
+			local selection = false
+			for i = 1, #linkorder do
+				local composite = table.concat(linkorder, "_")
+				if chains[composite] ~= nil then
+					local chainsame = true
+					for icheck = 1, self.chainunit do
+						if chains[composite][icheck] ~= checkorder[icheck] then
+							chainsame = false
+					end end
+					if chainsame then -- Discard chains that are identical to the timeline sections they would be overlaid upon
+						table.remove(linkorder, 1)
+					else
+						selection = composite
+						break
+					end
+				else
+					table.remove(linkorder, 1)
+			end end
+			local usechain = 0
+			if selection then
+				usechain = chains[selection][math.random(#chains[selection])]
+			else -- If no chains match the preceding ticks, pick a beat-starting chain at random
+				local goodpoint = false
+				repeat
+					local rnewpoint = (math.random(#timeline / self.tpq) * self.tpq) - (self.tpq - 1)
+					goodpoint = timeline[rnewpoint][math.random(#rnewpoint)].note or false
+				until goodpoint
+				usechain = chains[goodpoint][math.random(#chains[goodpoint])]
+			end
+
+			-- Add the current Markov chain section's notes to the timeline
+			for k, v in ipairs(usechain) do
+				local sect = (((tick + (k - 1)) - 1) % #timeline) + 1
+				local noterepeat = false
+				if next(timeline[sect]) then
+					for n in pairs(timeline[sect]) do
+						if timeline[sect][n].note == v.note then
+							noterepeat = true
+							break
+				end end end
+				if not noterepeat then
+					--if math.random(0, 100) < attract[sect] then 
+					table.insert(timeline[sect], v)
+			end end
+	end end
+	pd.post("Markov chains overlaid!")
+
+	return timeline
 
 end
 
@@ -191,8 +395,7 @@ function Drumgrowth:destructiveChunkRepeat(timeline, reps)
 	for i = 1, #chunks do
 		for _, v in ipairs(chunks[i]) do
 			table.insert(newtimeline, v)
-		end
-	end
+	end end
 
 	pd.post("Destructive chunk repeat complete!")
 
@@ -200,89 +403,30 @@ function Drumgrowth:destructiveChunkRepeat(timeline, reps)
 
 end
 
--- Overlay Markov chains onto a timeline that contais notes, based on the contents of a chains table
-function Drumgrowth:overlayMarkovChains(timeline, attract, chains)
+-- Shit around some errant notes to more prominent ticks, deleting those that stack, to prevent formation of overly cluttered sequences
+function Drumgrowth:shiftErrantNotes(timeline, attract)
 
-	-- Loop over the timeline multiple times, favoring notes that lay on wide denominators and laying down Markov chains thereafter
-	pd.post("Overlaying Markov chains onto established timeline...")
-	for i = 1, self.passes do
-		pd.post("Iteration " .. i .. "...")
-		for tick = 1, #timeline do
-			if math.random(0, 100) < attract[tick] then
-
-				local linkbot = (((tick - math.floor(self.chainunit / 2)) - 1) % #timeline) + 1
-				local linkorder = {}
-				local cpoint = linkbot - 1
-				local selection = false
-
-				-- Grab the series of linking notes that occur directly before the current tick
-				repeat
-					cpoint = (cpoint % #timeline) + 1
-					table.insert(linkorder, (next(timeline[cpoint]) and timeline[cpoint][1].note) or -1)
-				until cpoint == tick
-
-				-- Identify the chains with the closest match to the preceding ticks
-				for i = 1, #linkorder do
-					local composite = table.concat(linkorder, "_")
-					if chains[composite] ~= nil then
-						selection = composite
+	pd.post("Shifting errant notes...")
+	local templine = deepCopy(timeline, {})
+	for i = 1, #templine do
+		for note = #timeline[i], 1, -1 do
+			if math.random(0, math.random(0, 100)) > attract[i] then
+				local movenote = table.remove(timeline[i], note)
+				local newpos = i
+				local direction = ((math.random(0, 1) == 1) and 1) or -1
+				while math.random(1, 100) < attract[newpos] do
+					newpos = (((newpos + direction) - 1) % #templine) + 1
+				end
+				local alreadythere = false
+				for _, v in pairs(templine[newpos]) do
+					if movenote.note == v.note then
+						alreadythere = true
 						break
-					else
-						table.remove(linkorder, 1)
-					end
-				end
-				local usechain = 0
-				if selection then
-					usechain = chains[selection][math.random(#chains[selection])]
-				else -- If no chains match the preceding ticks, pick a beat-starting chain at random
-					local goodpoint = false
-					repeat
-						goodpoint = timeline[(math.random(#timeline / self.tpq) * self.tpq) - (self.tpq - 1)][1].note or false
-					until goodpoint
-					usechain = chains[goodpoint][math.random(#chains[goodpoint])]
-				end
-
-				-- Add the current Markov chain section's notes to the timeline
-				for k, v in ipairs(usechain) do
-					if v ~= -1 then
-						local sect = (((tick + (k - 1)) - 1) % #timeline) + 1
-						local noterepeat = false
-						if next(timeline[sect])
-						and (timeline[sect][1].note ~= nil)
-						and (timeline[sect][1].note == v)
-						then
-							noterepeat = true
-							break
-						end
-						if not noterepeat then
-							if math.random(0, 100) < attract[sect] then 
-								table.insert(timeline[sect], v)
-							end
-						end
-					end
-				end
-
-			end
-		end
-	end
-	pd.post("Markov chains overlaid!")
-
-	return timeline
-
-end
-
--- Remove some errant notes, to prevent formation of overly cluttered sequences
-function Drumgrowth:removeErrantNotes(timeline, attract)
-
-	pd.post("Removing some errant notes...")
-	for i = 1, #timeline do
-		for note = 1, #timeline[i] do
-			if (math.random(0, 100) * 1.5) > attract[i] then
-				timeline[i][note] = {["note"] = -1, ["weight"] = -1, ["volume"] = -1}
-			end
-		end
-	end
-	pd.post("Errant notes removed!")
+				end end
+				if not alreadythere then
+					table.insert(timeline[newpos], movenote)
+	end end end end
+	pd.post("Errant notes shifted!")
 
 	return timeline
 
@@ -293,13 +437,11 @@ function Drumgrowth:varyNoteVolumes(timeline)
 
 	pd.post("Humanizing volume levels...")
 	for i = 1, #timeline do
-		for note = 1, #timeline[i] do
-			local vol = timeline[i][note].volume
-			if vol > -1 then
-				timeline[i][note].volume = math.max(1, math.min(127, math.floor(vol / 2) + math.random(1, vol)))
-			end
-		end
-	end
+		for k, v in pairs(timeline[i]) do
+			if v.volume > -1 then
+				local volmod = math.floor(v.volume * 0.2)
+				timeline[i][k].volume = math.max(10, math.min(127, math.random(v.volume - volmod, v.volume + volmod)))
+	end end end
 	pd.post("Volume levels humanized!")
 
 	return timeline
@@ -394,19 +536,12 @@ function Drumgrowth:in_3_bang()
 
 	math.randomseed(self.seed)
 
+	local timeline, chains = {}, {}
 	local ticks = self.tpq * self.beats
 
-	-- Populate timeline with the total number of ticks
-	pd.post("Fabricating timeline table...")
-	local timeline = {}
-	for i = 1, ticks do
-		timeline[i] = {}
-	end
-	pd.post("Timeline table fabricated!")
-
-	local divs = self:populateTPQTable(self.tpq)
+	local divs = self:populateTPQTable()
 	local attract = self:populateAttractionTable(ticks, divs)
-	local voices, totalvoiceweight = self:collectBaseNotes(3, 10, 25, 100)
+	local voices, totalvoiceweight = self:collectBaseNotes(3, 10, 33, 100)
 
 	-- Sort voices by threshold weight
 	pd.post("Sorting note priorities by threshold weight...")
@@ -414,18 +549,20 @@ function Drumgrowth:in_3_bang()
 	pd.post("Note priorities sorted!")
 
 	-- Initial population of the timeline
-	timeline = self:populateInitialNotes(timeline, attract, voices, totalvoiceweight)
-	local chains = self:generateMarkovChains(timeline, {})
+	timeline = self:buildInitialChunks(divs, voices, totalvoiceweight)
+	timeline = self:pepperIncidentalNotes(timeline, attract, voices, totalvoiceweight)
 
-	-- Establish destructive repetition, overlay Markov chains, then establish more destructive repetition
-	timeline = self:destructiveChunkRepeat(timeline, self.beats)
-	timeline = self:overlayMarkovChains(timeline, attract, chains)
-	timeline = self:destructiveChunkRepeat(timeline, self.beats)
-
-	-- Remove some errant notes to prevent clutter, vary volumes, then establish more repetition
-	timeline = self:removeErrantNotes(timeline, attract)
+	-- Modification of the timeline
+	for i = 1, self.passes do
+		pd.post("Starting Markov pass " .. i .. "...")
+		chains = self:generateMarkovChains(timeline, {})
+		timeline = self:overlayMarkovChains(timeline, attract, chains)
+		pd.post("Finished Markov pass " .. i .. "!")
+	end
+	pd.post("Completed Markov passes!")
+	timeline = self:shiftErrantNotes(timeline, attract)
+	--timeline = self:destructiveChunkRepeat(timeline, math.floor(self.beats / 2))
 	timeline = self:varyNoteVolumes(timeline)
-	timeline = self:destructiveChunkRepeat(timeline, math.random(1, math.floor(self.beats / 2)))
 
 	-- Fabricate a score template
 	pd.post("Populating score...")
@@ -433,20 +570,16 @@ function Drumgrowth:in_3_bang()
 		self.tpq,
 		{
 			{"set_tempo", 0, 60000000 / self.bpm}, -- Tempo: microseconds per beat
+			{"end_track", #timeline - 1}, -- End track at last beat
 			{"time_signature", 0, 4, 4, self.tpq, 8}, -- Time signature: numerator, denominator, ticks per 1/4, 32nds per 1/4
 		},
 	}
 
 	-- Populate score with notes from the timeline table, following MIDI.lua's table formatting requirements
 	for tick, v in pairs(timeline) do
-		if next(v) ~= nil then
-			for _, item in pairs(v) do
-				if item.note ~= -1 then
-					table.insert(score[2], {"note", tick, math.min(#timeline - tick, self.sustain), self.channel, item.note, item.volume})
-				end
-			end
-		end
-	end
+		for index, item in pairs(v) do
+			table.insert(score[2], {"note", tick - 1, math.min(#timeline - tick, self.sustain), self.channel, item.note, item.volume})
+	end end
 	pd.post("Score populated!")
 
 	-- Save the table into a MIDI file, using MIDI.lua functions
