@@ -564,22 +564,27 @@ function Drumgrowth:in_3_bang()
 	--timeline = self:destructiveChunkRepeat(timeline, math.floor(self.beats / 2))
 	timeline = self:varyNoteVolumes(timeline)
 
-	-- Fabricate a score template
+	-- Fabricate a Format 1 MIDI score template
 	pd.post("Populating score...")
 	local score = {
-		self.tpq,
-		{
+		[self.channel + 1] = {
 			{"set_tempo", 0, 60000000 / self.bpm}, -- Tempo: microseconds per beat
 			{"end_track", #timeline - 1}, -- End track at last beat
 			{"time_signature", 0, 4, 4, self.tpq, 8}, -- Time signature: numerator, denominator, ticks per 1/4, 32nds per 1/4
 		},
 	}
+	for i = 1, 16 do
+		score[i] = score[i] or {}
+	end
 
 	-- Populate score with notes from the timeline table, following MIDI.lua's table formatting requirements
 	for tick, v in pairs(timeline) do
 		for index, item in pairs(v) do
-			table.insert(score[2], {"note", tick - 1, math.min(#timeline - tick, self.sustain), self.channel, item.note, item.volume})
+			table.insert(score[self.channel + 1], {"note", tick - 1, math.min(#timeline - tick, self.sustain), self.channel, item.note, item.volume})
 	end end
+
+	table.insert(score, 1, self.tpq)
+
 	pd.post("Score populated!")
 
 	-- Save the table into a MIDI file, using MIDI.lua functions
